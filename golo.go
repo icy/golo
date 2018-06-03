@@ -123,6 +123,9 @@ func main() {
     warn(fmt.Sprintf("Making sure all fd >= 3 is not close-on-exec\n"));
     closeOnExec(false);
   } else {
+    if (*conn) != nil {
+      (*conn).Close();
+    }
     // https://golang.org/src/syscall/exec_unix.go?s=7214:7279#L244
     // Ruby > 1.8 has option to not close other fds before Exec
     // but Golang syscall.Exec() doesn't have that option
