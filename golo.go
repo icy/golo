@@ -15,6 +15,7 @@ import (
   "flag"
   "net"
   "os"
+  "syscall"
 )
 
 func isPortAvailable(ip string, port int, timeout int) bool {
@@ -53,12 +54,27 @@ func main() {
       warn(fmt.Sprintf("Unable to bind on %s:%d. App is running?\n", *ipAddress, *port));
       os.Exit(1);
     }
+
+    warn(fmt.Sprintf("Bind successfully on %s:%d\n", *ipAddress, *port));
     *conn = conn_;
   }
 
-  if *conn != nil {
-    (*conn).Close();
+  err := syscall.Chdir(*workDir);
+  if err != nil {
+    warn(fmt.Sprintf("Switching to '%s' got error '%s'\n", *workDir, err));
+    os.Exit(1);
   }
 
-  warn(fmt.Sprintf("Now staring application from %s\n", *workDir));
+  cmdArgs   := flag.Args();
+  if len(cmdArgs) < 1 {
+    warn(fmt.Sprintf("You must specify a command\n"));
+    os.Exit(1);
+  }
+  execPath := cmdArgs[0];
+  warn(fmt.Sprintf("Now staring application '%s' from %s\n", execPath, *workDir));
+  err = syscall.Exec(execPath, cmdArgs, syscall.Environ());
+  if err != nil {
+    warn(fmt.Sprintf("Executing got error '%s'\n", err));
+    os.Exit(1);
+  }
 }
