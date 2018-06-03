@@ -8,6 +8,17 @@
   License : MIT
 */
 
+/*
+  Examples:
+
+  $ go run golo.go -timeout 10  -port 4040 --no-bind -- /usr/bin/ssh MyServer -o "LocalForward localhost:4040 localhost:8888" -fN
+  :: Port is available. App is not running
+  :: Now staring application '/usr/bin/ssh' from .
+
+  $ go run golo.go -timeout 10  -port 4040 --no-bind -- /usr/bin/ssh MyServer -o "LocalForward localhost:4040 localhost:8888" -fN
+  :: Port is not available. App is running?
+*/
+
 package main
 
 import (
@@ -15,7 +26,11 @@ import (
   "flag"
   "net"
   "os"
+  "os/exec"
   "syscall"
+  "log"
+  "regexp"
+  "strconv"
 )
 
 func isPortAvailable(ip string, port int, timeout int) bool {
@@ -29,6 +44,39 @@ func isPortAvailable(ip string, port int, timeout int) bool {
 
 func warn(msg string) {
   fmt.Fprintf(os.Stderr, fmt.Sprintf(":: %s", msg));
+}
+
+/*
+  Set close-on-exec state for all fds >= 3
+  The idea comes from
+    https://github.com/golang/gofrontend/commit/651e71a729e5dcbd9dc14c1b59b6eff05bfe3d26
+*/
+func closeOnExec(state bool) {
+  out, err := exec.Command("ls", fmt.Sprintf("/proc/%d/fd/", syscall.Getpid())).Output();
+  if err != nil {
+    log.Fatal(err);
+  }
+  pids := regexp.MustCompile("[ \t\n]").Split(fmt.Sprintf("%s", out), -1);
+  i := 0;
+  for i < len(pids) {
+    if len(pids[i]) < 1 {
+      i ++;
+      continue;
+    }
+    pid, err := strconv.Atoi(pids[i]);
+    if err != nil {
+      log.Fatal(err);
+    }
+    if (pid > 2) {
+      // FIXME: Check if fd is close
+      if state {
+        syscall.Syscall(syscall.SYS_FCNTL, uintptr(pid), syscall.FD_CLOEXEC, 0);
+      } else {
+        syscall.Syscall(syscall.SYS_FCNTL, uintptr(pid), 0, 0);
+      }
+    }
+    i ++;
+  }
 }
 
 func main() {
@@ -71,6 +119,15 @@ func main() {
     os.Exit(1);
   }
   execPath := cmdArgs[0];
+  if *noBind == false {
+    warn(fmt.Sprintf("Making sure all fd >= 3 is not close-on-exec\n"));
+    closeOnExec(false);
+  } else {
+    // https://golang.org/src/syscall/exec_unix.go?s=7214:7279#L244
+    // Ruby > 1.8 has option to not close other fds before Exec
+    // but Golang syscall.Exec() doesn't have that option
+  }
+
   warn(fmt.Sprintf("Now staring application '%s' from %s\n", execPath, *workDir));
   err = syscall.Exec(execPath, cmdArgs, syscall.Environ());
   if err != nil {
