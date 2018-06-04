@@ -42,8 +42,8 @@ func isPortAvailable(ip string, port int, timeout int) bool {
 	return true
 }
 
-func warn(msg string) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf(":: %s", msg))
+func warnf(format string, a ...interface{}) {
+	fmt.Fprintln(os.Stderr, "::", fmt.Sprintf(format, a...))
 }
 
 /*
@@ -80,6 +80,7 @@ func closeOnExec(state bool) {
 }
 
 func main() {
+
 	ipAddress := flag.String("address", "127.0.0.1", "Address to listen on or to check")
 	workDir := flag.String("dir", ".", "Working diretory")
 	port := flag.Int("port", 0, "Port to listen on or to check")
@@ -91,19 +92,19 @@ func main() {
 
 	if *noBind {
 		if isPortAvailable(*ipAddress, *port, *timeout) {
-			warn("Port is available. App is not running\n")
+			warnf("Port is available. App is not running")
 		} else {
-			warn("Port is not available. App is running?\n")
+			warnf("Port is not available. App is running?")
 			os.Exit(0)
 		}
 	} else {
 		conn_, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *ipAddress, *port))
 		if err != nil {
-			warn(fmt.Sprintf("Unable to bind on %s:%d. App is running?\n", *ipAddress, *port))
+			warnf("Unable to bind on %s:%d. App is running?", *ipAddress, *port)
 			os.Exit(1)
 		}
 
-		warn(fmt.Sprintf("Bind successfully on %s:%d\n", *ipAddress, *port))
+		warnf("Bind successfully on %s:%d", *ipAddress, *port)
 		*conn = conn_
 	}
 
@@ -115,12 +116,12 @@ func main() {
 
 	cmdArgs := flag.Args()
 	if len(cmdArgs) < 1 {
-		warn(fmt.Sprintf("You must specify a command\n"))
+		warnf("You must specify a command\n")
 		os.Exit(1)
 	}
 	execPath := cmdArgs[0]
 	if *noBind == false {
-		warn(fmt.Sprintf("Making sure all fd >= 3 is not close-on-exec\n"))
+		warnf("Making sure all fd >= 3 is not close-on-exec")
 		closeOnExec(false)
 	} else {
 		if (*conn) != nil {
@@ -131,10 +132,10 @@ func main() {
 		// but Golang syscall.Exec() doesn't have that option
 	}
 
-	warn(fmt.Sprintf("Now staring application '%s' from %s\n", execPath, *workDir))
+	warnf("Now staring application '%s' from %s\n", execPath, *workDir)
 	err = syscall.Exec(execPath, cmdArgs, syscall.Environ())
 	if err != nil {
-		warn(fmt.Sprintf("Executing got error '%s'\n", err))
+		warnf("Executing got error '%s'", err)
 		os.Exit(1)
 	}
 }
