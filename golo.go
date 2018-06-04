@@ -81,36 +81,44 @@ func closeOnExec(state bool) {
 
 func main() {
 
-	ipAddress := flag.String("address", "127.0.0.1", "Address to listen on or to check")
-	workDir := flag.String("dir", ".", "Working diretory")
-	port := flag.Int("port", 0, "Port to listen on or to check")
-	timeout := flag.Int("timeout", 1, "Timeout when checking. Default: 1 second.")
-	noBind := flag.Bool("no-bind", false, "Do not bind on address:port specified")
+	var (
+		ipAddress string
+		workDir   string
+		port      int
+		timeout   int
+		noBind    bool
+	)
+
+	flag.StringVar(&ipAddress, "address", "127.0.0.1", "Address to listen on or to check")
+	flag.StringVar(&workDir, "dir", ".", "Working diretory")
+	flag.IntVar(&port, "port", 0, "Port to listen on or to check")
+	flag.Intvar(&timeout, "timeout", 1, "Timeout when checking. Default: 1 second.")
+	flag.BoolVar(&noBind, "no-bind", false, "Do not bind on address:port specified")
 	flag.Parse()
 
-	var conn = new(net.Listener)
-
-	if *noBind {
-		if isPortAvailable(*ipAddress, *port, *timeout) {
+	if noBind {
+		if isPortAvailable(ipAddress, port, timeout) {
 			warnf("Port is available. App is not running")
 		} else {
 			warnf("Port is not available. App is running?")
 			os.Exit(0)
 		}
 	} else {
-		conn_, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *ipAddress, *port))
+		conn, err := net.Listen("tcp", fmt.Sprintf("%s:%d", ipAddress, port))
+
 		if err != nil {
-			warnf("Unable to bind on %s:%d. App is running?", *ipAddress, *port)
+			warnf("Unable to bind on %s:%d. App is running?", ipAddress, port)
 			os.Exit(1)
 		}
 
-		warnf("Bind successfully on %s:%d", *ipAddress, *port)
-		*conn = conn_
+		defer conn.Close() //Close the connection if it's Open, otherwise doesn't do anything
+
+		warnf("Bind successfully on %s:%d", ipAddress, port)
 	}
 
 	err := syscall.Chdir(*workDir)
 	if err != nil {
-		warn(fmt.Sprintf("Switching to '%s' got error '%s'\n", *workDir, err))
+		warnf("Switching to '%s' got error '%s'", workDir, err)
 		os.Exit(1)
 	}
 
@@ -120,19 +128,14 @@ func main() {
 		os.Exit(1)
 	}
 	execPath := cmdArgs[0]
-	if *noBind == false {
+
+	if !noBind {
 		warnf("Making sure all fd >= 3 is not close-on-exec")
 		closeOnExec(false)
-	} else {
-		if (*conn) != nil {
-			(*conn).Close()
-		}
-		// https://golang.org/src/syscall/exec_unix.go?s=7214:7279#L244
-		// Ruby > 1.8 has option to not close other fds before Exec
-		// but Golang syscall.Exec() doesn't have that option
 	}
 
-	warnf("Now staring application '%s' from %s\n", execPath, *workDir)
+	warnf("Now staring application '%s' from %s\n", execPath, workDir)
+
 	err = syscall.Exec(execPath, cmdArgs, syscall.Environ())
 	if err != nil {
 		warnf("Executing got error '%s'", err)
