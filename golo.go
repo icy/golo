@@ -92,7 +92,7 @@ func main() {
 	flag.StringVar(&ipAddress, "address", "127.0.0.1", "Address to listen on or to check")
 	flag.StringVar(&workDir, "dir", ".", "Working diretory")
 	flag.IntVar(&port, "port", 0, "Port to listen on or to check")
-	flag.Intvar(&timeout, "timeout", 1, "Timeout when checking. Default: 1 second.")
+	flag.IntVar(&timeout, "timeout", 1, "Timeout when checking. Default: 1 second.")
 	flag.BoolVar(&noBind, "no-bind", false, "Do not bind on address:port specified")
 	flag.Parse()
 
@@ -116,7 +116,7 @@ func main() {
 		warnf("Bind successfully on %s:%d", ipAddress, port)
 	}
 
-	err := syscall.Chdir(*workDir)
+	err := syscall.Chdir(workDir)
 	if err != nil {
 		warnf("Switching to '%s' got error '%s'", workDir, err)
 		os.Exit(1)
